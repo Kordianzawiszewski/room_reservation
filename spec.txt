@@ -1,0 +1,16 @@
+Modele:
+-Room
+-Reservation
+
+Room:
+-id
+-name
+-room number
+-capacity
+-floor
+
+Reservation:
+-id
+-start_time
+-end_time
+-reserved_by
