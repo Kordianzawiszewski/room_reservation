@@ -4,19 +4,37 @@ from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy import select, delete, exists
 
 from db import get_db
-from models import Room, Reservation
-from schemas import RoomCreate, RoomUpdate, ReservationCreate
+from models import Room, Reservation, User
+from schemas import RoomCreate, RoomUpdate, ReservationCreate, RoomResponse, ReservationResponse, UserResponse, \
+    UserCreate, Token, LoginRequest
 from sqlalchemy.orm import Session
+
+from security import hash_password, verify_password, create_access_token
 
 app = FastAPI()
 
-@app.get("/rooms")
+@app.get("/rooms", response_model=list[RoomResponse])
 def get_rooms(db: Session = Depends(get_db)):
     stmt = select(Room)
 
     return db.scalars(stmt).all()
 
-@app.get("/rooms/{room_id}")
+@app.get("/rooms/available", response_model=list[RoomResponse])
+def get_available_rooms(start: datetime, end: datetime, db: Session = Depends(get_db)):
+    if start >= end:
+        raise HTTPException(status_code=400, detail="Start time must be before end time")
+
+    stmt = select(Room).where(
+        ~exists().where(
+            Reservation.room_id == Room.id,
+            Reservation.start_time < end,
+            Reservation.end_time > start
+        )
+    )
+
+    return db.scalars(stmt).all()
+
+@app.get("/rooms/{room_id}", response_model=RoomResponse)
 def get_room(room_id: int, db: Session = Depends(get_db)):
     stmt = select(Room).where(Room.id == room_id)
     room = db.scalars(stmt).one_or_none()
@@ -26,7 +44,7 @@ def get_room(room_id: int, db: Session = Depends(get_db)):
 
     return room
 
-@app.post("/rooms")
+@app.post("/rooms", response_model=RoomResponse)
 def create_room(room: RoomCreate, db: Session = Depends(get_db)):
     db_room = Room(
         name=room.name,
@@ -54,22 +72,7 @@ def delete_room(room_id: int, db: Session = Depends(get_db)):
 
     return {"message": "Room deleted"}
 
-@app.get("/rooms/available")
-def get_available_rooms(start: datetime, end: datetime, db: Session = Depends(get_db)):
-    if start >= end:
-        raise HTTPException(status_code=400, detail="Start time must be before end time")
-
-    stmt = select(Room).where(
-        ~exists().where(
-            Reservation.room_id == Room.id,
-            Reservation.start_time < end,
-            Reservation.end_time > start
-        )
-    )
-
-    return db.scalars(stmt).all()
-
-@app.patch("/rooms/{room_id}")
+@app.patch("/rooms/{room_id}", response_model=RoomResponse)
 def update_room(room_id: int, room_update: RoomUpdate, db: Session = Depends(get_db)):
     stmt = select(Room).where(Room.id == room_id)
     room = db.scalars(stmt).one_or_none()
@@ -96,7 +99,7 @@ def update_room(room_id: int, room_update: RoomUpdate, db: Session = Depends(get
 
     return room
 
-@app.post("/reservations")
+@app.post("/reservations", response_model=ReservationResponse)
 def create_reservation(reservation: ReservationCreate, db: Session = Depends(get_db)):
     stmt = select(Room).where(Room.id == reservation.room_id)
     room = db.scalars(stmt).one_or_none()
@@ -131,7 +134,7 @@ def create_reservation(reservation: ReservationCreate, db: Session = Depends(get
 
     return db_reservation
 
-@app.get("/rooms/{room_id}/reservations")
+@app.get("/rooms/{room_id}/reservations", response_model=list[ReservationResponse])
 def get_room_reservations(room_id: int, date_filter: date | None = None, db: Session = Depends(get_db)):
     room_stmt = select(Room).where(Room.id == room_id)
     room = db.scalars(room_stmt).one_or_none()
@@ -153,12 +156,46 @@ def get_room_reservations(room_id: int, date_filter: date | None = None, db: Ses
 
     return db.scalars(reservations_stmt).all()
 
+@app.post("/register", response_model=UserResponse)
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    stmt = select(User).where(User.email == user.email)
+    existing_user = db.scalars(stmt).one_or_none()
 
+    if existing_user is not None:
+        raise HTTPException(status_code=409, detail="User with this email already exists")
 
+    hashed_password = hash_password(user.password)
 
+    new_user = User(
+        email=user.email,
+        password_hash=hashed_password
+    )
 
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
+    return new_user
 
+@app.post("/login", response_model=Token)
+def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+    stmt = select(User).where(User.email == login_data.email)
+    user = db.scalars(stmt).one_or_none()
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    check_password = verify_password(login_data.password, user.password_hash)
+
+    if not check_password:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = create_access_token(user.id)
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+    }
 
 
 

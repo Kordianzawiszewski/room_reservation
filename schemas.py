@@ -1,12 +1,13 @@
 from datetime import datetime
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, model_validator, Field
+
 
 class RoomCreate(BaseModel):
     name: str | None = None
     room_number: str | None = None
-    capacity: int
-    floor: int
+    capacity: int = Field(gt=0)
+    floor: int = Field(ge=-5, le=100)
 
     @model_validator(mode="after")
     def validate_name_or_number(self):
@@ -17,11 +18,55 @@ class RoomCreate(BaseModel):
 class RoomUpdate(BaseModel):
     name: str | None = None
     room_number: str | None = None
-    capacity: int | None = None
-    floor: int | None = None
+    capacity: int | None = Field(default=None, gt=0)
+    floor: int | None = Field(default=None, ge=-5, le=100)
 
 class ReservationCreate(BaseModel):
-   room_id: int
+   room_id: int = Field(gt=0)
    start_time: datetime
    end_time: datetime
-   reserved_by: str
+   reserved_by: str = Field(min_length=1, max_length=100)
+
+class RoomResponse(BaseModel):
+    id: int
+    name: str | None = None
+    room_number: str | None = None
+    capacity: int
+    floor: int
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class ReservationResponse(BaseModel):
+    id: int
+    room_id: int
+    start_time: datetime
+    end_time: datetime
+    reserved_by: str
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    role: str
+    is_active: bool
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str

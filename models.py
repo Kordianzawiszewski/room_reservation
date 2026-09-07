@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Integer, String, ForeignKey, DateTime
+from sqlalchemy import CheckConstraint, Integer, String, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -35,3 +35,12 @@ class Reservation(Base):
     reserved_by: Mapped[str] = mapped_column(String(100), nullable=False)
 
     room: Mapped["Room"] = relationship(back_populates="reservations")
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(100), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
