@@ -32,9 +32,10 @@ class Reservation(Base):
     room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"), nullable=False)
     start_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     end_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    reserved_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 
     room: Mapped["Room"] = relationship(back_populates="reservations")
+    user: Mapped["User"] = relationship(back_populates="reservations")
 
 class User(Base):
     __tablename__ = "users"
@@ -44,3 +45,5 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(100), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    reservations: Mapped[list["Reservation"]] = relationship(back_populates="user")

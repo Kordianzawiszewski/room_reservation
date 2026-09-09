@@ -25,7 +25,6 @@ class ReservationCreate(BaseModel):
    room_id: int = Field(gt=0)
    start_time: datetime
    end_time: datetime
-   reserved_by: str = Field(min_length=1, max_length=100)
 
 class RoomResponse(BaseModel):
     id: int
@@ -43,7 +42,7 @@ class ReservationResponse(BaseModel):
     room_id: int
     start_time: datetime
     end_time: datetime
-    reserved_by: str
+    user_id: int
 
     model_config = {
         "from_attributes": True

@@ -9,7 +9,7 @@ from schemas import RoomCreate, RoomUpdate, ReservationCreate, RoomResponse, Res
     UserCreate, Token, LoginRequest
 from sqlalchemy.orm import Session
 
-from security import hash_password, verify_password, create_access_token
+from security import hash_password, verify_password, create_access_token, get_current_user, require_admin
 
 app = FastAPI()
 
@@ -45,7 +45,7 @@ def get_room(room_id: int, db: Session = Depends(get_db)):
     return room
 
 @app.post("/rooms", response_model=RoomResponse)
-def create_room(room: RoomCreate, db: Session = Depends(get_db)):
+def create_room(room: RoomCreate, current_admin: User = Depends(require_admin) , db: Session = Depends(get_db)):
     db_room = Room(
         name=room.name,
         room_number=room.room_number,
@@ -60,7 +60,7 @@ def create_room(room: RoomCreate, db: Session = Depends(get_db)):
     return db_room
 
 @app.delete("/rooms/{room_id}")
-def delete_room(room_id: int, db: Session = Depends(get_db)):
+def delete_room(room_id: int, current_user: User = Depends(require_admin),db: Session = Depends(get_db)):
     stmt = select(Room).where(Room.id == room_id)
     room = db.scalars(stmt).one_or_none()
 
@@ -73,7 +73,7 @@ def delete_room(room_id: int, db: Session = Depends(get_db)):
     return {"message": "Room deleted"}
 
 @app.patch("/rooms/{room_id}", response_model=RoomResponse)
-def update_room(room_id: int, room_update: RoomUpdate, db: Session = Depends(get_db)):
+def update_room(room_id: int, room_update: RoomUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     stmt = select(Room).where(Room.id == room_id)
     room = db.scalars(stmt).one_or_none()
 
@@ -100,7 +100,7 @@ def update_room(room_id: int, room_update: RoomUpdate, db: Session = Depends(get
     return room
 
 @app.post("/reservations", response_model=ReservationResponse)
-def create_reservation(reservation: ReservationCreate, db: Session = Depends(get_db)):
+def create_reservation(reservation: ReservationCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     stmt = select(Room).where(Room.id == reservation.room_id)
     room = db.scalars(stmt).one_or_none()
 
@@ -125,7 +125,7 @@ def create_reservation(reservation: ReservationCreate, db: Session = Depends(get
         room_id=reservation.room_id,
         start_time=reservation.start_time,
         end_time=reservation.end_time,
-        reserved_by=reservation.reserved_by,
+        user_id=current_user.id,
     )
 
     db.add(db_reservation)
@@ -133,6 +133,24 @@ def create_reservation(reservation: ReservationCreate, db: Session = Depends(get
     db.refresh(db_reservation)
 
     return db_reservation
+
+@app.delete("/reservations/{reservation_id}")
+def cancel_reservation(reservation_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    reservation_stmt = select(Reservation).where(Reservation.id == reservation_id)
+    existing_reservation = db.scalars(reservation_stmt).one_or_none()
+
+    if existing_reservation is None:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+
+    if existing_reservation.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You can only cancel your own reservations")
+
+    db.delete(existing_reservation)
+    db.commit()
+
+    return {
+        "message": "Reservation canceled",
+    }
 
 @app.get("/rooms/{room_id}/reservations", response_model=list[ReservationResponse])
 def get_room_reservations(room_id: int, date_filter: date | None = None, db: Session = Depends(get_db)):
@@ -197,6 +215,9 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
         "token_type": "bearer",
     }
 
+@app.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
 
 
 
