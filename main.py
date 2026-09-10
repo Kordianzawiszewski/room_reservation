@@ -1,5 +1,6 @@
 from datetime import date, time, datetime, timedelta
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy import select, delete, exists
 
@@ -218,6 +219,13 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
 @app.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@app.get("/external")
+async def get_external_data():
+    async with httpx.AsyncClient() as client:
+        response = await client.get("https://httpbin.org/get")
+
+    return response.json()
 
 
 
