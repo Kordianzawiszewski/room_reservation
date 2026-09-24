@@ -33,6 +33,7 @@ class Reservation(Base):
     start_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     end_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    google_event_id: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     room: Mapped["Room"] = relationship(back_populates="reservations")
     user: Mapped["User"] = relationship(back_populates="reservations")
@@ -47,3 +48,27 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     reservations: Mapped[list["Reservation"]] = relationship(back_populates="user")
+    google_calendar_connection: Mapped["GoogleCalendarConnection | None"] = relationship(back_populates="user", uselist=False)
+    google_oauth_state: Mapped["GoogleOAuthState | None"] = relationship(back_populates="user", uselist=False)
+
+class GoogleCalendarConnection(Base):
+    __tablename__ = "google_calendar_connections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True)
+    access_token: Mapped[str] = mapped_column(String(1024), nullable=False)
+    refresh_token: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    token_expiry: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="google_calendar_connection")
+
+class GoogleOAuthState(Base):
+    __tablename__ = "google_oauth_states"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    state: Mapped[str] = mapped_column(String(1024), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    code_verifier: Mapped[str] = mapped_column(String(128), nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="google_oauth_state")

@@ -1,17 +1,23 @@
-from datetime import date, time, datetime, timedelta
+import logging
+from datetime import date, time, datetime, timedelta, timezone
 
+import google_auth_oauthlib
 import httpx
 from fastapi import Depends, FastAPI, HTTPException
+from google_auth_oauthlib import flow
+from googleapiclient.errors import HttpError
 from sqlalchemy import select, delete, exists
 
 from db import get_db
-from models import Room, Reservation, User
+from models import Room, Reservation, User, GoogleOAuthState, GoogleCalendarConnection
 from schemas import RoomCreate, RoomUpdate, ReservationCreate, RoomResponse, ReservationResponse, UserResponse, \
     UserCreate, Token, LoginRequest
 from sqlalchemy.orm import Session
 
 from security import hash_password, verify_password, create_access_token, get_current_user, require_admin
+import google_calendar
 
+logger = logging.getLogger(__name__)
 app = FastAPI()
 
 @app.get("/rooms", response_model=list[RoomResponse])
@@ -133,6 +139,26 @@ def create_reservation(reservation: ReservationCreate, current_user: User = Depe
     db.commit()
     db.refresh(db_reservation)
 
+    calendar_conn_stmt = select(GoogleCalendarConnection).where(GoogleCalendarConnection.user_id == current_user.id)
+    connection = db.scalars(calendar_conn_stmt).one_or_none()
+
+    if connection is not None:
+        try:
+            calendar_service = google_calendar.get_calendar_service(connection, db)
+
+            created_event = google_calendar.create_calendar_event(
+                calendar_service,
+                f"Reservation: Room {room.name}",
+                reservation.start_time,
+                reservation.end_time,
+            )
+
+            db_reservation.google_event_id = created_event["id"]
+            db.commit()
+
+        except HttpError:
+            logger.exception("Calendar sync failed")
+
     return db_reservation
 
 @app.delete("/reservations/{reservation_id}")
@@ -146,8 +172,21 @@ def cancel_reservation(reservation_id: int, current_user: User = Depends(get_cur
     if existing_reservation.user_id != current_user.id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="You can only cancel your own reservations")
 
+    google_event_id = existing_reservation.google_event_id
+
+    calendar_conn_stmt = select(GoogleCalendarConnection).where(GoogleCalendarConnection.user_id == existing_reservation.user_id)
+    connection = db.scalars(calendar_conn_stmt).one_or_none()
+
     db.delete(existing_reservation)
     db.commit()
+
+    if google_event_id is not None and connection is not None:
+        try:
+            calendar_service = google_calendar.get_calendar_service(connection, db)
+
+            google_calendar.delete_calendar_event(calendar_service, google_event_id)
+        except HttpError as e:
+            logger.exception(f"Calendar sync failed")
 
     return {
         "message": "Reservation canceled",
@@ -219,3 +258,116 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
 @app.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@app.get("/integrations/google/connect")
+def connect_google_calendar(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    stmt = select(GoogleOAuthState).where(GoogleOAuthState.user_id == current_user.id)
+    existing_state = db.scalars(stmt).one_or_none()
+
+    authorization_url, oauth_state, code_verifier = google_calendar.get_google_authorization_url()
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    if existing_state is not None:
+        existing_state.state = oauth_state
+        existing_state.code_verifier = code_verifier
+        existing_state.expires_at = expires_at
+    else:
+        new_state = GoogleOAuthState(
+            state=oauth_state,
+            user_id=current_user.id,
+            expires_at=expires_at,
+            code_verifier=code_verifier
+        )
+
+        db.add(new_state)
+
+    db.commit()
+
+    return {
+        "authorization_url": authorization_url,
+    }
+
+@app.get("/integrations/google/callback")
+def google_callback(code: str, state: str, db: Session = Depends(get_db)):
+    stmt = select(GoogleOAuthState).where(GoogleOAuthState.state == state)
+    existing_state = db.scalars(stmt).one_or_none()
+
+    if existing_state is None:
+        raise HTTPException(status_code=400, detail="Invalid OAuth state")
+
+    if existing_state.expires_at < datetime.utcnow():
+        db.delete(existing_state)
+        db.commit()
+
+        raise HTTPException(status_code=400, detail="OAuth state expired")
+
+    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
+        'credentials_web.json',
+        scopes=google_calendar.SCOPES,
+        state=state,
+        code_verifier=existing_state.code_verifier
+    )
+
+    flow.redirect_uri = "http://localhost:8000/integrations/google/callback"
+
+    flow.fetch_token(code=code)
+
+    credentials = flow.credentials
+
+    conn_stmt = select(GoogleCalendarConnection).where(GoogleCalendarConnection.user_id == existing_state.user_id)
+    existing_conn = db.scalars(conn_stmt).one_or_none()
+
+    if existing_conn is not None:
+        existing_conn.access_token = credentials.token
+        existing_conn.token_expiry = credentials.expiry
+
+        if credentials.refresh_token is not None:
+            existing_conn.refresh_token = credentials.refresh_token
+    else:
+        google_calendar_conn = GoogleCalendarConnection(
+            user_id=existing_state.user_id,
+            access_token=credentials.token,
+            refresh_token=credentials.refresh_token,
+            token_expiry=credentials.expiry
+        )
+
+        db.add(google_calendar_conn)
+
+    db.delete(existing_state)
+    db.commit()
+
+    return {
+        "message": "Google Calendar connected"
+    }
+
+
+@app.get("/integrations/google/status")
+def get_google_integration_status(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    stmt = select(GoogleCalendarConnection).where(GoogleCalendarConnection.user_id == current_user.id)
+    connection = db.scalars(stmt).one_or_none()
+
+    return {
+        "connected": connection is not None
+    }
+
+@app.delete("/integrations/google")
+def disconnect_google(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    stmt = select(GoogleCalendarConnection).where(GoogleCalendarConnection.user_id == current_user.id)
+    connection = db.scalars(stmt).one_or_none()
+
+    if connection is not None:
+        db.delete(connection)
+        db.commit()
+    else:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    return {
+        "message": "Connection deleted"
+    }
+
+
+
+
+
+
