@@ -1,13 +1,11 @@
 import logging
 import os
-from datetime import date, time, datetime, timedelta, timezone
+from datetime import date, time, datetime, timedelta
 
 import google_auth_oauthlib
-import httpx
 from fastapi import Depends, FastAPI, HTTPException, Header, Request
-from google_auth_oauthlib import flow
 from googleapiclient.errors import HttpError
-from sqlalchemy import select, delete, exists
+from sqlalchemy import select, exists
 
 from db import get_db
 from models import Room, Reservation, User, GoogleOAuthState, GoogleCalendarConnection, WebhookEvent
@@ -160,6 +158,8 @@ def create_reservation(reservation: ReservationCreate, current_user: User = Depe
 
         except HttpError:
             logger.exception("Calendar sync failed")
+        except RuntimeError:
+            logger.exception("Google Calendar connection requires reconnect")
 
     return db_reservation
 
@@ -187,8 +187,10 @@ def cancel_reservation(reservation_id: int, current_user: User = Depends(get_cur
             calendar_service = google_calendar.get_calendar_service(connection, db)
 
             google_calendar.delete_calendar_event(calendar_service, google_event_id)
-        except HttpError as e:
-            logger.exception(f"Calendar sync failed")
+        except HttpError:
+            logger.exception("Calendar sync failed")
+        except RuntimeError:
+            logger.exception("Google Calendar connection requires reconnect")
 
     return {
         "message": "Reservation canceled",

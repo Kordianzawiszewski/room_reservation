@@ -1,12 +1,10 @@
 import json
 from time import sleep
 
-from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import google_auth_oauthlib.flow
-import os
 
 from googleapiclient.errors import HttpError
 
