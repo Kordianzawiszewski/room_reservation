@@ -72,3 +72,15 @@ class GoogleOAuthState(Base):
     code_verifier: Mapped[str] = mapped_column(String(128), nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="google_oauth_state")
+
+class WebhookEvent(Base):
+    __tablename__ = "webhook_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    event_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+
+

@@ -69,3 +69,16 @@ class Token(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class ReservationWebhook(BaseModel):
+    event_id: str
+    event_type: str
+    reservation_id: int
+    user_id: int
+
+
+
+
+
+
+
