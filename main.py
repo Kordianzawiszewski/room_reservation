@@ -1,18 +1,17 @@
 import logging
-import os
 from datetime import date, time, datetime, timedelta
 
 import google_auth_oauthlib
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Header, Request
+from fastapi import Depends, FastAPI, HTTPException
 from googleapiclient.errors import HttpError
 from sqlalchemy import select, exists
 
 import webhooks
 from db import get_db
-from models import Room, Reservation, User, GoogleOAuthState, GoogleCalendarConnection, WebhookEvent
+from models import Room, Reservation, User, GoogleOAuthState, GoogleCalendarConnection
 from schemas import RoomCreate, RoomUpdate, ReservationCreate, RoomResponse, ReservationResponse, UserResponse, \
-    UserCreate, Token, LoginRequest, ReservationWebhook, N8nTestRequest
+    UserCreate, Token, LoginRequest
 from sqlalchemy.orm import Session
 
 from security import hash_password, verify_password, create_access_token, get_current_user, require_admin, \
@@ -376,36 +375,4 @@ def disconnect_google(current_user: User = Depends(get_current_user), db: Sessio
         "message": "Connection deleted"
     }
 
-@app.post("/webhooks/reservations")
-async def receive_information_webhook(request: Request, webhook: ReservationWebhook, db: Session = Depends(get_db), x_webhook_signature: str = Header(...)):
-    raw_body = await request.body()
-    secret = os.getenv("WEBHOOK_SECRET")
 
-    if secret is None:
-        raise RuntimeError("WEBHOOK_SECRET is not configured")
-
-    if not verify_webhook_signature(raw_body, secret, x_webhook_signature):
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
-
-    stmt = select(WebhookEvent).where(WebhookEvent.event_id == webhook.event_id)
-    existing_webhook_event = db.scalars(stmt).one_or_none()
-
-    if existing_webhook_event is not None:
-        return {
-            "received": True,
-            "duplicate": True
-        }
-
-    new_webhook_event = WebhookEvent(
-        event_id=webhook.event_id,
-        event_type=webhook.event_type,
-        processed_at=datetime.utcnow(),
-    )
-
-    db.add(new_webhook_event)
-    db.commit()
-
-    return {
-        "received": True,
-        "duplicate": False
-    }

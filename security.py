@@ -77,19 +77,3 @@ def require_admin(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     return current_user
-
-def generate_webhook_signature(payload: bytes, secret: str) -> str:
-    signature = hmac.new(
-        secret.encode("utf-8"),
-        payload,
-        hashlib.sha256
-    )
-
-    return signature.hexdigest()
-
-def verify_webhook_signature(payload: bytes, secret: str, received_signature: str) -> bool:
-    expected_signature = generate_webhook_signature(payload, secret)
-
-    return hmac.compare_digest(expected_signature, received_signature)
-
-
