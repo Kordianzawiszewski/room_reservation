@@ -14,8 +14,8 @@ from schemas import RoomCreate, RoomUpdate, ReservationCreate, RoomResponse, Res
     UserCreate, Token, LoginRequest
 from sqlalchemy.orm import Session
 
-from security import hash_password, verify_password, create_access_token, get_current_user, require_admin, \
-    verify_webhook_signature
+from security import hash_password, verify_password, create_access_token, get_current_user, require_admin
+
 import google_calendar
 
 logger = logging.getLogger(__name__)
