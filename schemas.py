@@ -76,6 +76,9 @@ class ReservationWebhook(BaseModel):
     reservation_id: int
     user_id: int
 
+class N8nTestRequest(BaseModel):
+    reservation_id: int
+    user_id: int
 
 
 

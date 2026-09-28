@@ -3,14 +3,16 @@ import os
 from datetime import date, time, datetime, timedelta
 
 import google_auth_oauthlib
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Header, Request
 from googleapiclient.errors import HttpError
 from sqlalchemy import select, exists
 
+import webhooks
 from db import get_db
 from models import Room, Reservation, User, GoogleOAuthState, GoogleCalendarConnection, WebhookEvent
 from schemas import RoomCreate, RoomUpdate, ReservationCreate, RoomResponse, ReservationResponse, UserResponse, \
-    UserCreate, Token, LoginRequest, ReservationWebhook
+    UserCreate, Token, LoginRequest, ReservationWebhook, N8nTestRequest
 from sqlalchemy.orm import Session
 
 from security import hash_password, verify_password, create_access_token, get_current_user, require_admin, \
@@ -160,6 +162,11 @@ def create_reservation(reservation: ReservationCreate, current_user: User = Depe
             logger.exception("Calendar sync failed")
         except RuntimeError:
             logger.exception("Google Calendar connection requires reconnect")
+
+    try:
+        webhooks.send_reservation_created_webhook(db_reservation.id, current_user.id)
+    except httpx.HTTPError:
+        logger.exception("Webhook sending failed")
 
     return db_reservation
 
@@ -402,7 +409,3 @@ async def receive_information_webhook(request: Request, webhook: ReservationWebh
         "received": True,
         "duplicate": False
     }
-
-
-
-
