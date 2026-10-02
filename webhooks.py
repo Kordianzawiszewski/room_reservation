@@ -2,7 +2,6 @@ from uuid import uuid4
 
 import httpx
 
-
 def send_reservation_created_webhook(reservation_id, user_id):
     payload = {
         "event_id": str(uuid4()),

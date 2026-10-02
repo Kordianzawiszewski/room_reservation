@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import date, time, datetime, timedelta
 
@@ -5,13 +6,16 @@ import google_auth_oauthlib
 import httpx
 from fastapi import Depends, FastAPI, HTTPException
 from googleapiclient.errors import HttpError
+from pydantic import ValidationError
 from sqlalchemy import select, exists
 
 import webhooks
+from ai_service import generate_room_search
 from db import get_db
 from models import Room, Reservation, User, GoogleOAuthState, GoogleCalendarConnection
+from room_service import find_available_rooms
 from schemas import RoomCreate, RoomUpdate, ReservationCreate, RoomResponse, ReservationResponse, UserResponse, \
-    UserCreate, Token, LoginRequest
+    UserCreate, Token, LoginRequest, AiSearchRequest
 from sqlalchemy.orm import Session
 
 from security import hash_password, verify_password, create_access_token, get_current_user, require_admin
@@ -28,19 +32,13 @@ def get_rooms(db: Session = Depends(get_db)):
     return db.scalars(stmt).all()
 
 @app.get("/rooms/available", response_model=list[RoomResponse])
-def get_available_rooms(start: datetime, end: datetime, db: Session = Depends(get_db)):
+def get_available_rooms(start: datetime, end: datetime, capacity: int | None = None, db: Session = Depends(get_db)):
     if start >= end:
         raise HTTPException(status_code=400, detail="Start time must be before end time")
 
-    stmt = select(Room).where(
-        ~exists().where(
-            Reservation.room_id == Room.id,
-            Reservation.start_time < end,
-            Reservation.end_time > start
-        )
-    )
+    available_rooms = find_available_rooms(db, start, end, capacity)
 
-    return db.scalars(stmt).all()
+    return available_rooms
 
 @app.get("/rooms/{room_id}", response_model=RoomResponse)
 def get_room(room_id: int, db: Session = Depends(get_db)):
@@ -375,4 +373,14 @@ def disconnect_google(current_user: User = Depends(get_current_user), db: Sessio
         "message": "Connection deleted"
     }
 
+@app.post("/ai/search-rooms", response_model=list[RoomResponse])
+def search_rooms_with_ai(request: AiSearchRequest, db: Session = Depends(get_db)):
+    try:
+        generated_data = generate_room_search(request.query)
+    except (httpx.HTTPError, json.JSONDecodeError, ValidationError):
+        logger.exception("Ai room search failed")
+        raise HTTPException(status_code=502, detail="AI service unavailable")
 
+    available_rooms = find_available_rooms(db, generated_data.start_time, generated_data.end_time, generated_data.capacity)
+
+    return available_rooms

@@ -74,8 +74,16 @@ class N8nTestRequest(BaseModel):
     reservation_id: int
     user_id: int
 
+class RoomSearchIntent(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    capacity: int | None = Field(default=None, gt=0)
 
+    @model_validator(mode="after")
+    def validate_time(self):
+        if self.end_time <= self.start_time:
+            raise ValueError("End time must be after start time")
+        return self
 
-
-
-
+class AiSearchRequest(BaseModel):
+    query: str
