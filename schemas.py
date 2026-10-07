@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, date, time
+from typing import Literal
 
 from pydantic import BaseModel, model_validator, Field
-
 
 class RoomCreate(BaseModel):
     name: str | None = None
@@ -75,15 +75,34 @@ class N8nTestRequest(BaseModel):
     user_id: int
 
 class RoomSearchIntent(BaseModel):
-    start_time: datetime
-    end_time: datetime
+    intent: Literal["rooms_search"]
+    start_time: datetime = Field(description="Start date and time of the requested room search.")
+    end_time: datetime | None = Field(
+        description=(
+            "End date and time of the requested room search. "
+            "If the user provides a time range such as 'from 12 to 13', "
+            "this must be 13:00. Return null only if no end time or duration is provided."
+        )
+    )
     capacity: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_time(self):
-        if self.end_time <= self.start_time:
+        if self.end_time is not None and self.end_time <= self.start_time:
             raise ValueError("End time must be after start time")
         return self
 
+class RoomAvailabilityIntent(BaseModel):
+    intent: Literal["room_availability"]
+    room_identifier: str
+    date: date
+    check_time: time | None = Field(default=None, description="Specific time mentioned by the user. If the user asks about 12, return 12:00. Return null only when no specific time is mentioned.")
+
 class AiSearchRequest(BaseModel):
     query: str
+
+class AiRoomResponse(BaseModel):
+    intent: Literal["rooms_search", "room_availability"]
+    rooms: list[RoomResponse] | None = None
+    available: bool | None = None
+    free_slots: list[tuple[datetime, datetime]] | None = None

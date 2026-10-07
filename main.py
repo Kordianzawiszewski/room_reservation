@@ -15,7 +15,7 @@ from db import get_db
 from models import Room, Reservation, User, GoogleOAuthState, GoogleCalendarConnection
 from room_service import find_available_rooms
 from schemas import RoomCreate, RoomUpdate, ReservationCreate, RoomResponse, ReservationResponse, UserResponse, \
-    UserCreate, Token, LoginRequest, AiSearchRequest
+    UserCreate, Token, LoginRequest, AiSearchRequest, RoomSearchIntent, RoomAvailabilityIntent, AiRoomResponse
 from sqlalchemy.orm import Session
 
 from security import hash_password, verify_password, create_access_token, get_current_user, require_admin
@@ -373,7 +373,7 @@ def disconnect_google(current_user: User = Depends(get_current_user), db: Sessio
         "message": "Connection deleted"
     }
 
-@app.post("/ai/search-rooms", response_model=list[RoomResponse])
+@app.post("/ai/search-rooms", response_model=AiRoomResponse)
 def search_rooms_with_ai(request: AiSearchRequest, db: Session = Depends(get_db)):
     try:
         generated_data = generate_room_search(request.query)
@@ -381,6 +381,70 @@ def search_rooms_with_ai(request: AiSearchRequest, db: Session = Depends(get_db)
         logger.exception("Ai room search failed")
         raise HTTPException(status_code=502, detail="AI service unavailable")
 
-    available_rooms = find_available_rooms(db, generated_data.start_time, generated_data.end_time, generated_data.capacity)
+    print(generated_data)
 
-    return available_rooms
+    if isinstance(generated_data, RoomSearchIntent):
+        if generated_data.end_time is None:
+            raise HTTPException(status_code=400, detail="Podaj, do której godziny lub na jak długo potrzebujesz sali.")
+
+        data = find_available_rooms(db, generated_data.start_time, generated_data.end_time, generated_data.capacity)
+
+        return AiRoomResponse(
+            intent=generated_data.intent,
+            rooms=data
+        )
+
+    elif isinstance(generated_data, RoomAvailabilityIntent):
+        identifier = generated_data.room_identifier
+
+        stmt = select(Room).where(Room.name == identifier)
+        room = db.scalars(stmt).one_or_none()
+
+        if room is None:
+            stmt = select(Room).where(Room.room_number == identifier)
+            room = db.scalars(stmt).one_or_none()
+
+        if room is None:
+            raise HTTPException(status_code=404, detail="Room not found")
+
+        day_start = datetime.combine(generated_data.date, time.min)
+        day_end = day_start + timedelta(days=1)
+
+        stmt = select(Reservation).where(
+            Reservation.room_id == room.id,
+            Reservation.start_time < day_end,
+            Reservation.end_time > day_start
+        )
+
+        reservations = db.scalars(stmt).all()
+
+        if generated_data.check_time is not None:
+            check_datetime = datetime.combine(generated_data.date, generated_data.check_time)
+
+            is_busy = any(
+                reservation.start_time <=  check_datetime < reservation.end_time
+                for reservation in reservations
+            )
+
+            return AiRoomResponse(
+                intent=generated_data.intent,
+                available=not is_busy,
+            )
+
+        reservations = sorted(reservations, key=lambda r: r.start_time)
+        free_slots = []
+        current_start = day_start
+
+        for reservation in reservations:
+            if reservation.start_time > current_start:
+                free_slots.append((current_start, reservation.start_time))
+
+            current_start = max(current_start, reservation.end_time)
+
+        if current_start < day_end:
+            free_slots.append((current_start, day_end))
+
+        return AiRoomResponse(
+            intent=generated_data.intent,
+            free_slots=free_slots,
+        )
