@@ -70,6 +70,9 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
     if existing_user is None:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 
+    if not existing_user.is_active:
+        raise HTTPException(status_code=403, detail="User account is inactive")
+
     return existing_user
 
 def require_admin(current_user: User = Depends(get_current_user)):

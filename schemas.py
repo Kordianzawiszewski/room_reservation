@@ -1,7 +1,8 @@
 from datetime import datetime, date, time
 from typing import Literal
 
-from pydantic import BaseModel, model_validator, Field
+from pydantic import BaseModel, model_validator, Field, EmailStr
+
 
 class RoomCreate(BaseModel):
     name: str | None = None
@@ -49,8 +50,8 @@ class ReservationResponse(BaseModel):
     }
 
 class UserCreate(BaseModel):
-    email: str
-    password: str
+    email: EmailStr
+    password: str = Field(min_length=8)
 
 class UserResponse(BaseModel):
     id: int
@@ -67,7 +68,7 @@ class Token(BaseModel):
     token_type: str
 
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 class N8nTestRequest(BaseModel):

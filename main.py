@@ -224,7 +224,9 @@ def get_room_reservations(room_id: int, date_filter: date | None = None, db: Ses
 
 @app.post("/register", response_model=UserResponse)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    stmt = select(User).where(User.email == user.email)
+    email = user.email.lower()
+
+    stmt = select(User).where(User.email == email)
     existing_user = db.scalars(stmt).one_or_none()
 
     if existing_user is not None:
@@ -233,7 +235,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     hashed_password = hash_password(user.password)
 
     new_user = User(
-        email=user.email,
+        email=email,
         password_hash=hashed_password
     )
 
@@ -245,11 +247,15 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/login", response_model=Token)
 def login(login_data: LoginRequest, db: Session = Depends(get_db)):
-    stmt = select(User).where(User.email == login_data.email)
+    stmt = select(User).where(User.email == login_data.email.lower())
     user = db.scalars(stmt).one_or_none()
 
     if user is None:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="User account is inactive")
 
     check_password = verify_password(login_data.password, user.password_hash)
 
