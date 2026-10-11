@@ -50,6 +50,18 @@ class User(Base):
     reservations: Mapped[list["Reservation"]] = relationship(back_populates="user")
     google_calendar_connection: Mapped["GoogleCalendarConnection | None"] = relationship(back_populates="user", uselist=False)
     google_oauth_state: Mapped["GoogleOAuthState | None"] = relationship(back_populates="user", uselist=False)
+    password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(100), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    user: Mapped["User"] = relationship(back_populates="password_reset_tokens")
 
 class GoogleCalendarConnection(Base):
     __tablename__ = "google_calendar_connections"

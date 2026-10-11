@@ -12,13 +12,15 @@ from sqlalchemy import select, exists
 import webhooks
 from ai_service import generate_room_search
 from db import get_db
-from models import Room, Reservation, User, GoogleOAuthState, GoogleCalendarConnection
+from models import Room, Reservation, User, GoogleOAuthState, GoogleCalendarConnection, PasswordResetToken
 from room_service import find_available_rooms
 from schemas import RoomCreate, RoomUpdate, ReservationCreate, RoomResponse, ReservationResponse, UserResponse, \
-    UserCreate, Token, LoginRequest, AiSearchRequest, RoomSearchIntent, RoomAvailabilityIntent, AiRoomResponse
+    UserCreate, Token, LoginRequest, AiSearchRequest, RoomSearchIntent, RoomAvailabilityIntent, AiRoomResponse, \
+    ForgotPasswordRequest, ResetPasswordRequest
 from sqlalchemy.orm import Session
 
-from security import hash_password, verify_password, create_access_token, get_current_user, require_admin
+from security import hash_password, verify_password, create_access_token, get_current_user, require_admin, \
+    create_password_reset_token, hash_reset_token
 
 import google_calendar
 
@@ -273,6 +275,42 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
+@app.post("/forgot-password")
+def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    email = request.email.lower()
+
+    stmt = select(User).where(User.email == email)
+    user = db.scalars(stmt).one_or_none()
+
+    if user is not None and user.is_active:
+        token = create_password_reset_token(user.id, db)
+        print(token)
+
+    return {
+        "message": "If the account exists, a reset link has been sent."
+    }
+
+@app.post("/reset-password")
+def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+    hash_token = hash_reset_token(request.token)
+
+    token_stmt = select(PasswordResetToken).where(PasswordResetToken.token_hash == hash_token)
+    password_reset_token = db.scalars(token_stmt).one_or_none()
+
+    if password_reset_token is None or password_reset_token.used is True or password_reset_token.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user_stmt = select(User).where(User.id == password_reset_token.user_id)
+    user = db.scalars(user_stmt).one_or_none()
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_password = hash_password(request.new_password)
+
+    updated_user = User(
+
+    )
 
 @app.get("/integrations/google/connect")
 def connect_google_calendar(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

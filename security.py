@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException
@@ -12,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db import get_db
-from models import User
+from models import User, PasswordResetToken
 
 load_dotenv()
 
@@ -80,3 +81,25 @@ def require_admin(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     return current_user
+
+def create_password_reset_token(user_id, db):
+    token = secrets.token_urlsafe(32)
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    password_reset_token = PasswordResetToken(
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expire,
+        used=False
+    )
+
+    db.add(password_reset_token)
+    db.commit()
+
+    return token
+
+def hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
