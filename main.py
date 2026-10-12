@@ -7,7 +7,7 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException
 from googleapiclient.errors import HttpError
 from pydantic import ValidationError
-from sqlalchemy import select, exists
+from sqlalchemy import select, exists, update
 
 import webhooks
 from ai_service import generate_room_search
@@ -163,7 +163,7 @@ def create_reservation(reservation: ReservationCreate, current_user: User = Depe
             logger.exception("Google Calendar connection requires reconnect")
 
     try:
-        webhooks.send_reservation_created_webhook(db_reservation.id, current_user.id)
+        webhooks.send_reservation_created_webhook(db_reservation.id, current_user.id, current_user.email, room.name, reservation.start_time, reservation.end_time)
     except httpx.HTTPError:
         logger.exception("Webhook sending failed")
 
@@ -284,10 +284,14 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
 
     if user is not None and user.is_active:
         token = create_password_reset_token(user.id, db)
-        print(token)
+
+        try:
+            webhooks.send_reset_password_link_webhook(user.email, token)
+        except httpx.HTTPError:
+            logger.exception("Password reset webhook failed")
 
     return {
-        "message": "If the account exists, a reset link has been sent."
+        "message": "If the account exists, a reset link has been sent"
     }
 
 @app.post("/reset-password")
@@ -300,17 +304,19 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
     if password_reset_token is None or password_reset_token.used is True or password_reset_token.expires_at < datetime.utcnow():
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    user_stmt = select(User).where(User.id == password_reset_token.user_id)
-    user = db.scalars(user_stmt).one_or_none()
-
-    if user is None:
+    if password_reset_token.user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    new_password = hash_password(request.new_password)
+    new_password_hash = hash_password(request.new_password)
 
-    updated_user = User(
+    password_reset_token.user.password_hash = new_password_hash
+    password_reset_token.used = True
 
-    )
+    db.commit()
+
+    return {
+        "message": "Password changed",
+    }
 
 @app.get("/integrations/google/connect")
 def connect_google_calendar(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

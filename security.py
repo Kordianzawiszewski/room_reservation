@@ -87,7 +87,7 @@ def create_password_reset_token(user_id, db):
 
     token_hash = hashlib.sha256(token.encode()).hexdigest()
 
-    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    expire = datetime.utcnow() + timedelta(minutes=15)
 
     password_reset_token = PasswordResetToken(
         user_id=user_id,

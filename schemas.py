@@ -78,10 +78,6 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-class N8nTestRequest(BaseModel):
-    reservation_id: int
-    user_id: int
-
 class RoomSearchIntent(BaseModel):
     intent: Literal["rooms_search"]
     start_time: datetime = Field(description="Start date and time of the requested room search.")
