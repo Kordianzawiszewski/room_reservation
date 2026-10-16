@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from googleapiclient.errors import HttpError
 from pydantic import ValidationError
 from sqlalchemy import select, exists, update
+from starlette.middleware.cors import CORSMiddleware
 
 import webhooks
 from ai_service import generate_room_search
@@ -27,8 +28,16 @@ import google_calendar
 logger = logging.getLogger(__name__)
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get("/rooms", response_model=list[RoomResponse])
-def get_rooms(db: Session = Depends(get_db)):
+def get_rooms(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     stmt = select(Room)
 
     return db.scalars(stmt).all()
