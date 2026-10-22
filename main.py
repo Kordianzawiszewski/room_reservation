@@ -9,6 +9,7 @@ from googleapiclient.errors import HttpError
 from pydantic import ValidationError
 from sqlalchemy import select, exists, update
 from starlette.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 import webhooks
 from ai_service import generate_room_search
@@ -284,6 +285,19 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
+@app.get("/reservations/me", response_model=list[ReservationResponse])
+def get_my_reservations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    stmt = select(Reservation).where(
+        Reservation.user_id == current_user.id
+    )
+
+    reservations = db.scalars(stmt).all()
+
+    return reservations
+
 @app.post("/forgot-password")
 def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
     email = request.email.lower()
@@ -404,9 +418,9 @@ def google_callback(code: str, state: str, db: Session = Depends(get_db)):
     db.delete(existing_state)
     db.commit()
 
-    return {
-        "message": "Google Calendar connected"
-    }
+    return RedirectResponse(
+        url="http://localhost:5173/google-calendar"
+    )
 
 @app.get("/integrations/google/status")
 def get_google_integration_status(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

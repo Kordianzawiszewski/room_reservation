@@ -44,6 +44,7 @@ class ReservationResponse(BaseModel):
     start_time: datetime
     end_time: datetime
     user_id: int
+    room: RoomResponse
 
     model_config = {
         "from_attributes": True

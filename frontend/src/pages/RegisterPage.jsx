@@ -3,8 +3,9 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 function RegisterPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [error, setError] = useState('')
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -23,9 +24,10 @@ function RegisterPage() {
   const data = await response.json()
 
   if (response.ok) {
+      setError('')
       console.log('Registered')
   } else {
-      console.log(data)
+      setError(data.detail || 'Registration failed')
     }
   }
 
@@ -54,6 +56,8 @@ function RegisterPage() {
       <p>
         Already have an account? <Link to="/login">Login</Link>
       </p>
+
+      {error && <p>{error}</p>}
     </div>
   )
 }
