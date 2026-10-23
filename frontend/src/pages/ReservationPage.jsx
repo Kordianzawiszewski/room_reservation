@@ -1,5 +1,6 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import handleUnauthorized from '../utils/handleUnauthorized'
 
 function ReservationPage() {
     const { roomId } = useParams()
@@ -12,6 +13,7 @@ function ReservationPage() {
         event.preventDefault()
 
         const token = localStorage.getItem('access_token')
+        const navigate = useNavigate()
 
         const response = await fetch('http://localhost:8000/reservations', {
         method: 'POST',
@@ -25,6 +27,10 @@ function ReservationPage() {
           end_time: endTime,
         }),
         })
+
+        if (handleUnauthorized(response, navigate)) {
+          return
+        }
 
         const data = await response.json()
 

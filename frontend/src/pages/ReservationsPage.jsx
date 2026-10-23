@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import handleUnauthorized from '../utils/handleUnauthorized'
 
 function ReservationsPage() {
   const [reservations, setReservations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   useEffect(() => {
     async function fetchReservations() {
@@ -15,6 +18,11 @@ function ReservationsPage() {
             Authorization: `Bearer ${token}`,
           },
         })
+
+        if (handleUnauthorized(response, navigate)) {
+            return
+        }
+
 
         if (!response.ok) {
           throw new Error('Failed to fetch reservations')
@@ -52,6 +60,10 @@ function ReservationsPage() {
           },
         }
       )
+
+      if (handleUnauthorized(response, navigate)) {
+        return
+      }
 
       const data = await response.json()
 

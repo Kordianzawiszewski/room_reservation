@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {useNavigate} from "react-router-dom";
+import handleUnauthorized from '../utils/handleUnauthorized'
 
 function RoomsPage() {
     const [rooms, setRooms] = useState([])
@@ -22,6 +23,10 @@ function RoomsPage() {
                     Authorization: `Bearer ${token}`,
                   },
                 })
+
+                if (handleUnauthorized(response, navigate)) {
+                  return
+                }
 
                 if (!response.ok) {
                     throw new Error('Failed to fetch rooms')

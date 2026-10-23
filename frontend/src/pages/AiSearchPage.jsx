@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import handleUnauthorized from '../utils/handleUnauthorized'
 
 function AISearchPage() {
   const [query, setQuery] = useState('')
@@ -10,6 +12,7 @@ function AISearchPage() {
     event.preventDefault()
 
     const token = localStorage.getItem('access_token')
+    const navigate = useNavigate()
 
     setLoading(true)
     setError('')
@@ -29,6 +32,10 @@ function AISearchPage() {
           }),
         }
       )
+
+      if (handleUnauthorized(response, navigate)) {
+        return
+      }
 
       const data = await response.json()
 

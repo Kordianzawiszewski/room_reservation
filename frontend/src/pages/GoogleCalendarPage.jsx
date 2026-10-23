@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import handleUnauthorized from '../utils/handleUnauthorized'
 
 function GoogleCalendarPage() {
   const [connected, setConnected] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   useEffect(() => {
     async function fetchStatus() {
@@ -18,6 +21,10 @@ function GoogleCalendarPage() {
             },
           }
         )
+
+        if (handleUnauthorized(response, navigate)) {
+          return
+        }
 
         const data = await response.json()
 
@@ -49,6 +56,10 @@ function GoogleCalendarPage() {
         }
       )
 
+      if (handleUnauthorized(response, navigate)) {
+        return
+      }
+
       const data = await response.json()
 
       if (response.ok) {
@@ -74,6 +85,10 @@ function GoogleCalendarPage() {
           },
         }
       )
+
+      if (handleUnauthorized(response, navigate)) {
+        return
+      }
 
       const data = await response.json()
 
