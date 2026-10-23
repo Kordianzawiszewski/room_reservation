@@ -1,79 +1,39 @@
 import { useEffect, useState } from 'react'
-import {useNavigate} from "react-router-dom";
+import { useNavigate } from 'react-router-dom'
 import handleUnauthorized from '../utils/handleUnauthorized'
+import { Alert, EmptyState, PageHeader, RoomCard, Skeletons } from '../components/UI'
 
-function RoomsPage() {
-    const [rooms, setRooms] = useState([])
-    const navigate = useNavigate()
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
+export default function RoomsPage() {
+  const [rooms, setRooms] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const navigate = useNavigate()
 
-    function handleLogout() {
-        localStorage.removeItem('access_token')
-        navigate('/login')
+  useEffect(() => {
+    const controller = new AbortController()
+    async function fetchRooms() {
+      try {
+        const response = await fetch('http://localhost:8000/rooms', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
+          signal: controller.signal,
+        })
+        if (handleUnauthorized(response, navigate)) return
+        if (!response.ok) throw new Error('Failed to fetch rooms')
+        setRooms(await response.json())
+      } catch (error) {
+        if (error.name !== 'AbortError') setError(error.message)
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
     }
+    fetchRooms()
+    return () => controller.abort()
+  }, [navigate])
 
-    useEffect(() => {
-        async function fetchRooms() {
-            const token = localStorage.getItem('access_token')
-
-            try {
-                const response = await fetch('http://localhost:8000/rooms', {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                })
-
-                if (handleUnauthorized(response, navigate)) {
-                  return
-                }
-
-                if (!response.ok) {
-                    throw new Error('Failed to fetch rooms')
-                  }
-
-                const data = await response.json()
-                setRooms(data)
-            } catch (error) {
-                setError(error.message)
-            } finally {
-                setLoading(false)
-            }
-        }
-
-            fetchRooms()
-    }, [])
-
-    if (loading) {
-      return <p>Loading rooms...</p>
-    }
-
-    if (error) {
-      return <p>{error}</p>
-    }
-
-    return (
-    <div>
-        <h1>Rooms</h1>
-
-        <button onClick={handleLogout}>
-          Logout
-        </button>
-
-        {rooms.map((room) => (
-          <div key={room.id}>
-            <h2>{room.name}</h2>
-            <p>Room number: {room.room_number}</p>
-            <p>Capacity: {room.capacity}</p>
-            <p>Floor: {room.floor}</p>
-
-            <button onClick={() => navigate(`/rooms/${room.id}/reserve`)}>
-              Reserve
-            </button>
-          </div>
-        ))}
-    </div>
-    )
+  return (
+    <section>
+      <PageHeader title="Rooms" description="Find the right space for your next meeting." />
+      {loading ? <Skeletons /> : error ? <Alert>{error}</Alert> : rooms.length ? <div className="rooms-grid">{rooms.map(room => <RoomCard key={room.id} room={room} reservable />)}</div> : <EmptyState icon="room" title="No rooms to display" description="Rooms will appear here when they are available in the booking system." />}
+    </section>
+  )
 }
-
-export default RoomsPage

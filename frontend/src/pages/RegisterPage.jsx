@@ -1,65 +1,47 @@
-import '../App.css'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Alert, AuthLayout, EmailField, PasswordField, SubmitButton } from '../components/UI'
 
-function RegisterPage() {
-    const [email, setEmail] = useState('')
-    const [password, setPassword] = useState('')
-    const [error, setError] = useState('')
+export default function RegisterPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(event) {
     event.preventDefault()
-
-    const response = await fetch('http://localhost:8000/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: email,
-        password: password,
+    setLoading(true)
+    setError('')
+    setMessage('')
+    try {
+      const response = await fetch('http://localhost:8000/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       })
-    })
-
-  const data = await response.json()
-
-  if (response.ok) {
-      setError('')
-      console.log('Registered')
-  } else {
-      setError(data.detail || 'Registration failed')
+      const data = await response.json()
+      if (response.ok) {
+        setMessage('Account created. You can now sign in.')
+      } else {
+        setError(data.detail || 'Registration failed')
+      }
+    } catch {
+      setError('Failed to connect to server. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-      <div>
-      <h1>Room Booking</h1>
-
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-        />
-
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-
-        <button type="submit">Register</button>
+    <AuthLayout title="Create your account" description="Book meeting rooms in one place." footer={<p>Already have an account? <Link to="/login">Login</Link></p>}>
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <EmailField value={email} onChange={event => setEmail(event.target.value)} />
+        <PasswordField value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" />
+        <Alert>{error}</Alert>
+        <Alert type="success">{message}</Alert>
+        <SubmitButton loading={loading} loadingText="Creating account…">Register</SubmitButton>
       </form>
-
-      <p>
-        Already have an account? <Link to="/login">Login</Link>
-      </p>
-
-      {error && <p>{error}</p>}
-    </div>
+    </AuthLayout>
   )
 }
-
-export default RegisterPage

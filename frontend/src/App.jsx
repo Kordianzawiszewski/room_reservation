@@ -9,7 +9,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import AppLayout from './components/AppLayout'
 import GoogleCalendarPage from './pages/GoogleCalendarPage'
-import AISearchPage from './pages/AISearchPage'
+import AISearchPage from './pages/AiSearchPage'
 
 function App() {
   return (
