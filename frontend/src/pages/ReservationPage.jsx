@@ -3,6 +3,7 @@ import { useState } from 'react'
 import handleUnauthorized from '../utils/handleUnauthorized'
 import Icon from '../components/Icon'
 import { Alert, PageHeader, SubmitButton } from '../components/UI'
+import { API_URL } from '../config'
 
 export default function ReservationPage() {
   const { roomId } = useParams()
@@ -21,7 +22,7 @@ export default function ReservationPage() {
     setError('')
     setMessage('')
     try {
-      const response = await fetch('http://localhost:8000/reservations', {
+      const response = await fetch(`${API_URL}/reservations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

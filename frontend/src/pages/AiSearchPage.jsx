@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import handleUnauthorized from '../utils/handleUnauthorized'
 import Icon from '../components/Icon'
 import { Alert, EmptyState, RoomCard, Skeletons, SubmitButton } from '../components/UI'
+import { API_URL } from '../config'
 
 export default function AISearchPage() {
   const [query, setQuery] = useState('')
@@ -17,7 +18,7 @@ export default function AISearchPage() {
     setError('')
     setResult(null)
     try {
-      const response = await fetch('http://localhost:8000/ai/search-rooms', {
+      const response = await fetch(`${API_URL}/ai/search-rooms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

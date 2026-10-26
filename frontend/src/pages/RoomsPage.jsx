@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import handleUnauthorized from '../utils/handleUnauthorized'
 import { Alert, EmptyState, PageHeader, RoomCard, Skeletons } from '../components/UI'
+import { API_URL } from '../config'
 
 export default function RoomsPage() {
   const [rooms, setRooms] = useState([])
@@ -13,7 +14,7 @@ export default function RoomsPage() {
     const controller = new AbortController()
     async function fetchRooms() {
       try {
-        const response = await fetch('http://localhost:8000/rooms', {
+        const response = await fetch(`${API_URL}/rooms`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
           signal: controller.signal,
         })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Alert, AuthLayout, BackToLogin, EmailField, SubmitButton } from '../components/UI'
+import { API_URL } from '../config'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -13,7 +14,7 @@ export default function ForgotPasswordPage() {
     setError('')
     setMessage('')
     try {
-      const response = await fetch('http://localhost:8000/forgot-password', {
+      const response = await fetch(`${API_URL}/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

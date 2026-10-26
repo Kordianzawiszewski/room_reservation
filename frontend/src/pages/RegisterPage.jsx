@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Alert, AuthLayout, EmailField, PasswordField, SubmitButton } from '../components/UI'
+import { API_URL } from '../config'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
@@ -15,7 +16,7 @@ export default function RegisterPage() {
     setError('')
     setMessage('')
     try {
-      const response = await fetch('http://localhost:8000/register', {
+      const response = await fetch(`${API_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

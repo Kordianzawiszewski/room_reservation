@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import handleUnauthorized from '../utils/handleUnauthorized'
 import Icon from '../components/Icon'
 import { Alert, EmptyState, PageHeader, Skeletons } from '../components/UI'
+import { API_URL } from '../config'
 
 const dateLabel = value => new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 const timeLabel = value => new Date(value).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
@@ -19,7 +20,7 @@ export default function ReservationsPage() {
     const controller = new AbortController()
     async function fetchReservations() {
       try {
-        const response = await fetch('http://localhost:8000/reservations/me', {
+        const response = await fetch(`${API_URL}/reservations/me`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
           signal: controller.signal,
         })
@@ -40,7 +41,7 @@ export default function ReservationsPage() {
     setCancelling(current => [...current, reservationId])
     setActionError('')
     try {
-      const response = await fetch(`http://localhost:8000/reservations/${reservationId}`, {
+      const response = await fetch(`${API_URL}/reservations/${reservationId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
       })
